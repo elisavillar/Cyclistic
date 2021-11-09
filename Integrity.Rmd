@@ -1,0 +1,288 @@
+---
+title: "Case_Study_Cyclistic_Integrity"
+author: "Elisa"
+date: "04/11/2021"
+output: html_document
+---
+
+# Validation and integrity of the data
+
+## Setting working directory
+Change the code to adapt to the proper directory
+
+```{r set_workspace}
+setwd("~/Case_study_1")
+```
+
+
+## Install and load packages
+
+```{r install_load_packages, include=FALSE}
+
+install.packages('janitor')
+install.packages("tidyverse")
+
+library(readr)
+library(janitor)
+library(plyr)
+library(tidyverse)
+library(lubridate)
+
+```
+
+
+## Load csv to the RStudio repository
+
+```{r load_csv, include=FALSE}
+
+X202004_divvy_tripdata <- read_csv("cyclistic_data/202004-divvy-tripdata.csv")
+X202005_divvy_tripdata <- read_csv("cyclistic_data/202005-divvy-tripdata.csv")
+X202006_divvy_tripdata <- read_csv("cyclistic_data/202006-divvy-tripdata.csv")
+X202007_divvy_tripdata <- read_csv("cyclistic_data/202007-divvy-tripdata.csv")
+X202008_divvy_tripdata <- read_csv("cyclistic_data/202008-divvy-tripdata.csv")
+X202009_divvy_tripdata <- read_csv("cyclistic_data/202009-divvy-tripdata.csv")
+X202010_divvy_tripdata <- read_csv("cyclistic_data/202010-divvy-tripdata.csv")
+X202011_divvy_tripdata <- read_csv("cyclistic_data/202011-divvy-tripdata.csv")
+X202012_divvy_tripdata <- read_csv("cyclistic_data/202012-divvy-tripdata.csv")
+X202101_divvy_tripdata <- read_csv("cyclistic_data/202101-divvy-tripdata.csv")
+X202102_divvy_tripdata <- read_csv("cyclistic_data/202102-divvy-tripdata.csv")
+X202103_divvy_tripdata <- read_csv("cyclistic_data/202103-divvy-tripdata.csv")
+X202104_divvy_tripdata <- read_csv("cyclistic_data/202104-divvy-tripdata.csv")
+
+```
+
+## Check if names of columns are the same in all data sets
+
+```{r checkin_col_str}
+
+compare_df_cols(X202004_divvy_tripdata, 
+                X202005_divvy_tripdata,
+                X202006_divvy_tripdata, 
+                X202007_divvy_tripdata, 
+                X202008_divvy_tripdata,
+                X202009_divvy_tripdata, 
+                X202010_divvy_tripdata, 
+                X202011_divvy_tripdata, 
+                X202012_divvy_tripdata, 
+                X202101_divvy_tripdata, 
+                X202102_divvy_tripdata, 
+                X202103_divvy_tripdata, 
+                X202104_divvy_tripdata, 
+                return = "mismatch")
+
+```
+Because from December 2020 the Company changed the start and end station id there's some discrepancy between columns id from 2020 and 2021.I am going to create one data frame with all the information.
+
+## Join the different data frame into one
+
+```{r join_dataframes}
+
+tripdata_2020_2021 <- rbind (X202004_divvy_tripdata,
+                             X202005_divvy_tripdata,
+                             X202006_divvy_tripdata,
+                             X202007_divvy_tripdata,
+                             X202008_divvy_tripdata,
+                             X202009_divvy_tripdata,
+                             X202010_divvy_tripdata, 
+                             X202011_divvy_tripdata,
+                             X202012_divvy_tripdata, 
+                             X202101_divvy_tripdata,
+                             X202102_divvy_tripdata, 
+                             X202103_divvy_tripdata,
+                             X202104_divvy_tripdata)
+
+```
+
+## Checking dates
+
+I am going to check if the start date is older than the end date, as it should be. I am going to filter rows that the end date is previous to the start date because that information is not valid.
+
+```{r filtering_incorrect_dates}
+
+tripdata_2020_2021 %>% filter(ended_at > started_at)
+
+
+```
+
+
+## Ckeck for variables
+In this section the code is intended to analyze if any of the variables contains anomalies. 
+
+```{r Variables_checker}
+
+tripdata_2020_2021[!duplicated(tripdata_2020_2021$ride_id), ] #  remove any value of ride_id duplicated
+
+unique(tripdata_2020_2021[c("rideable_type")])                #   find unique values of rideable_type
+
+unique(tripdata_2020_2021[c("member_casual")])                #   find unique values of member_casual
+
+tripdata_2020_2021 %>% 
+  
+  filter(!is.na(start_station_name) && !is.na(end_station_name)) # filter when start_station_name and end_station_name are null
+
+tripdata_2020_2021 %>% 
+  
+  filter(difftime(tripdata_2020_2021$ended_at, tripdata_2020_2021$started_at, units =  "sec") >= 60) # filter trips below the 60 seconds mark, these trips may have been test rides, not valid for the analysis
+
+tripdata_2020_2021$ride_length <- (as.numeric(difftime(tripdata_2020_2021$ended_at,tripdata_2020_2021$started_at))) # adds another column to calculate each ride length in seconds
+
+tripdata_v2 <- tripdata_2020_2021[!(tripdata_2020_2021$rideable_type == "docked_bike" | tripdata_2020_2021$ride_length<0),] # remove docked_bike type and ride length less than zero.
+
+```
+
+## Values of rideable_type
+
+The different values that rideable_type could have are:
+ 
+ * docked_bike				
+ * electric_bike				
+ * classic_bike
+
+There are no null values.
+
+## Values of member_casual
+
+The different values that member_casual could have are:
+ 
+ * member				
+ * casual
+
+There are no null values.
+
+# CONDUCT DESCRIPTIVE ANALYSIS
+#=====================================
+# Descriptive analysis on ride_length (all figures in seconds)
+
+```{r descrip_analysis}
+
+mean(tripdata_v2$ride_length)   #straight average (total ride length / rides)
+median(tripdata_v2$ride_length) #midpoint number in the ascending array of ride lengths
+max(tripdata_v2$ride_length)    #longest ride
+min(tripdata_v2$ride_length)    #shortest ride
+
+```
+
+# Compare members and casual users
+
+```{r comp_data}
+
+
+aggregate(tripdata_v2$ride_length ~ tripdata_v2$member_casual, FUN = mean)
+aggregate(tripdata_v2$ride_length ~ tripdata_v2$member_casual, FUN = median)
+aggregate(tripdata_v2$ride_length ~ tripdata_v2$member_casual, FUN = max)
+aggregate(tripdata_v2$ride_length ~ tripdata_v2$member_casual, FUN = min)
+
+```
+# Notice that the days of the week are out of order. Let's fix that.
+
+```{r add_day_of_week}
+
+tripdata_v2$day_of_week <-weekdays(tripdata_v2$started_at)
+
+
+```
+
+
+
+# Average ride time by each day for members vs casual users
+
+```{r avg_ride_members_vs_casual}
+
+aggregate(tripdata_v2$ride_length ~ tripdata_v2$member_casual + tripdata_v2$day_of_week, FUN = mean)
+
+```
+
+
+
+# analyze ridership data by type and weekday
+
+```{r type_weekday}
+
+tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%                  #groups by usertype and weekday
+  summarise(number_of_rides = n()						          	#calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>%        		# calculates the average duration
+  arrange(member_casual, weekday)							        	# sorts
+
+```
+
+
+#=================================================
+# VIZUALITATIONS
+#=================================================
+
+```{r vizualitations}
+
+## ----Number of rides by rider type------------------------------------------
+tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge") + 
+  labs(title = "Number of Rides by Day and Rider Type") + 
+  ylab("Number of Rides (1e+05 = 100,000)") + 
+  xlab("Day of Week")
+
+
+## ----Number of rides by bike type and rider type----------------------------
+tripdata_v2 %>% 
+  group_by(member_casual, rideable_type) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, rideable_type)  %>% 
+  ggplot(aes(x = rideable_type, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge") + 
+  labs(title = "Number of Rides by Bike Type and Rider Type") + 
+  ylab("Number of Rides (5e+05 = 500,000)") + 
+  xlab("Bike Type")
+
+## ----Number of rides by day and bike type-----------------------------------
+tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(rideable_type, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(rideable_type, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = rideable_type)) +
+  geom_col(position = "dodge") + 
+  labs(title = "Number of Rides by Day and Bike Type") + 
+  ylab("Number of Rides (1e+05 = 100,000)") + 
+  xlab("Day of Week")
+
+## ----Average duration by bike type------------------------------------------
+tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(rideable_type, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length/60)) %>% 
+  arrange(rideable_type, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = rideable_type)) +
+  geom_col(position = "dodge") + 
+  labs(title = "Average Ride Duration by Day and Bike Type") + 
+  ylab("Average Duration (minutes)") + 
+  xlab("Day of Week")
+
+```
+
+
+
+
+#=================================================
+# EXPORT SUMMARY FILE FOR FURTHER ANALYSIS
+#=================================================
+
+```{r export_data}
+
+write.csv(tripdata_v2, file = '~/Case_study_1/tripdata_2020_2021.csv')
+
+```
+
+
+
+
+
+
